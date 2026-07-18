@@ -1662,11 +1662,19 @@ void
 output_logerrors (void) {
   Logs *logs = get_db_logs (DB_INSTANCE);
   GLog *glog = NULL;
-  int pid = getpid (), i;
+  int pid = getpid (), i = 0, j = 0;
+  uint8_t nerrors = 0;
 
   for (i = 0; i < logs->size; ++i) {
     glog = &logs->glog[i];
-    if (!glog->log_erridx)
+
+    /* Snapshot the atomic error count once. A distinct inner index keeps
+     * the outer file index monotonic (a shared index would let the inner
+     * loop rewind it and, with more sources than errors, never terminate),
+     * and the snapshot keeps the printed count consistent with the lines
+     * emitted even if a parse thread is still appending. */
+    nerrors = atomic_load (&glog->log_erridx);
+    if (!nerrors)
       continue;
 
     fprintf (stderr, "==%d== GoAccess - version %s - %s %s\n", pid, GO_VERSION, __DATE__, __TIME__);
@@ -1676,11 +1684,11 @@ output_logerrors (void) {
     fprintf (stderr, "==%d==\n", pid);
     fprintf (stderr, "==%d== FILE: %s\n", pid, glog->props.filename);
     fprintf (stderr, "==%d== ", pid);
-    fprintf (stderr, ERR_PARSED_NLINES, glog->log_erridx);
+    fprintf (stderr, ERR_PARSED_NLINES, nerrors);
     fprintf (stderr, " %s:\n", ERR_PARSED_NLINES_DESC);
     fprintf (stderr, "==%d==\n", pid);
-    for (i = 0; i < glog->log_erridx; ++i)
-      fprintf (stderr, "==%d== %s\n", pid, glog->errors[i]);
+    for (j = 0; j < nerrors; ++j)
+      fprintf (stderr, "==%d== %s\n", pid, glog->errors[j]);
   }
   fprintf (stderr, "==%d==\n", pid);
   fprintf (stderr, "==%d== %s\n", pid, ERR_FORMAT_HEADER);
