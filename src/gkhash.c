@@ -1562,6 +1562,11 @@ ht_insert_country_continent (const char *country, const char *continent) {
   if (!hash)
     return -1;
 
+  /* called per parsed line; avoid the insert path's key duplication once
+   * the country is already recorded */
+  if (kh_get (ss32, hash, country) != kh_end (hash))
+    return 1;
+
   return ins_ss32 (hash, country, continent);
 }
 

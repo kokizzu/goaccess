@@ -1386,12 +1386,11 @@ gen_keyphrase_key (GKeyData *kdata, GLogItem *logitem) {
  * returned. */
 static int
 extract_geolocation (GLogItem *logitem, char *continent, char *country, char *city) {
-  char asn_unused[ASN_LEN] = "";
-
   if (!is_geoip_resource ())
     return 1;
 
-  set_geolocation (logitem->host, continent, country, city, asn_unused);
+  /* NULL asn: the ASN panel performs its own lookup */
+  set_geolocation (logitem->host, continent, country, city, NULL);
 
   return 0;
 }

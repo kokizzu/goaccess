@@ -421,8 +421,9 @@ set_geolocation (char *host, char *continent, char *country, char *city, char *a
   if (!is_geoip_resource ())
     return 1;
 
-  /* set ASN data */
-  if (geoip_asn_type)
+  /* set ASN data; the ASN panel performs its own lookup, so callers that
+   * pass NULL skip the extra query per line */
+  if (geoip_asn_type && asn)
     geoip_asn (host, asn);
 
   if (!geoip_city_type && !geoip_country_type)
