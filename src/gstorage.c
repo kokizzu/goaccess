@@ -199,6 +199,7 @@ static const GParse paneling[] = {
     NULL,
     NULL,
     NULL,
+    1, /* vkey_data */
   }, {
     REQUESTS,
     gen_request_key,
@@ -212,6 +213,7 @@ static const GParse paneling[] = {
     insert_method,
     insert_protocol,
     NULL,
+    0, /* vkey_data */
   }, {
     REQUESTS_STATIC,
     gen_static_request_key,
@@ -225,6 +227,7 @@ static const GParse paneling[] = {
     insert_method,
     insert_protocol,
     NULL,
+    0, /* vkey_data */
   }, {
     NOT_FOUND,
     gen_404_key,
@@ -238,6 +241,7 @@ static const GParse paneling[] = {
     insert_method,
     insert_protocol,
     NULL,
+    0, /* vkey_data */
   }, {
     HOSTS,
     gen_host_key,
@@ -251,6 +255,7 @@ static const GParse paneling[] = {
     NULL,
     NULL,
     insert_agent,
+    1, /* vkey_data */
   }, {
     OS,
     gen_os_key,
@@ -264,6 +269,7 @@ static const GParse paneling[] = {
     insert_method,
     insert_protocol,
     NULL,
+    1, /* vkey_data */
   }, {
     BROWSERS,
     gen_browser_key,
@@ -277,6 +283,7 @@ static const GParse paneling[] = {
     NULL,
     NULL,
     NULL,
+    1, /* vkey_data */
   }, {
     REFERRERS,
     gen_referer_key,
@@ -290,6 +297,7 @@ static const GParse paneling[] = {
     NULL,
     NULL,
     NULL,
+    0, /* vkey_data */
   }, {
     REFERRING_SITES,
     gen_ref_site_key,
@@ -303,6 +311,7 @@ static const GParse paneling[] = {
     NULL,
     NULL,
     NULL,
+    0, /* vkey_data */
   }, {
     KEYPHRASES,
     gen_keyphrase_key,
@@ -316,6 +325,7 @@ static const GParse paneling[] = {
     NULL,
     NULL,
     NULL,
+    0, /* vkey_data */
   },
 #ifdef HAVE_GEOLOCATION
   {
@@ -331,6 +341,7 @@ static const GParse paneling[] = {
     NULL,
     NULL,
     NULL,
+    1, /* vkey_data */
   },
   {
     ASN,
@@ -345,6 +356,7 @@ static const GParse paneling[] = {
     NULL,
     NULL,
     NULL,
+    1, /* vkey_data */
   },
 #endif
   {
@@ -360,6 +372,7 @@ static const GParse paneling[] = {
     NULL,
     NULL,
     NULL,
+    0, /* vkey_data */
   }, {
     VISIT_TIMES,
     gen_visit_time_key,
@@ -373,6 +386,7 @@ static const GParse paneling[] = {
     NULL,
     NULL,
     NULL,
+    0, /* vkey_data */
   }, {
     VIRTUAL_HOSTS,
     gen_vhost_key,
@@ -386,6 +400,7 @@ static const GParse paneling[] = {
     NULL,
     NULL,
     NULL,
+    0, /* vkey_data */
   }, {
     REMOTE_USER,
     gen_remote_user_key,
@@ -399,6 +414,7 @@ static const GParse paneling[] = {
     NULL,
     NULL,
     NULL,
+    0, /* vkey_data */
   }, {
     CACHE_STATUS,
     gen_cache_status_key,
@@ -412,6 +428,7 @@ static const GParse paneling[] = {
     NULL,
     NULL,
     NULL,
+    0, /* vkey_data */
   }, {
     MIME_TYPE,
     gen_mime_type_key,
@@ -425,6 +442,7 @@ static const GParse paneling[] = {
     NULL, /*method*/
     NULL, /*protocol*/
     NULL, /*agent*/
+    0, /* vkey_data */
   }, {
     TLS_TYPE,
     gen_tls_type_key,
@@ -438,6 +456,7 @@ static const GParse paneling[] = {
     NULL,
     NULL,
     NULL,
+    0, /* vkey_data */
   },
 };
 /* *INDENT-ON* */
@@ -452,7 +471,6 @@ new_modulekey (GKeyData *kdata) {
     .dhash = 0,
     .rhash = 0,
     .root_nkey = 0,
-    .uniq_key = NULL,
     .uniq_nkey = 0,
   };
   *kdata = key;
@@ -471,6 +489,30 @@ panel_lookup (GModule module) {
       return &paneling[i];
   }
   return NULL;
+}
+
+/* Determine whether a panel's data key derives solely from the visitor key
+ * under the current configuration. With an hour/minute date specificity the
+ * VISITORS data key carries time of day, which the visitor key does not.
+ *
+ * If the panel counts visitors off the visitor key, non-zero is returned.
+ * Otherwise, 0 is returned. */
+static int
+is_vkey_data (const GParse *parse) {
+  if (parse->module == VISITORS && conf.date_spec_hr)
+    return 0;
+  return parse->vkey_data;
+}
+
+/* Determine whether a module's data key derives solely from the visitor key
+ * and therefore holds no uniqmap entries.
+ *
+ * If the module counts visitors off the visitor key, non-zero is returned.
+ * Otherwise, 0 is returned. */
+int
+module_vkey_data (GModule module) {
+  const GParse *parse = panel_lookup (module);
+  return parse ? is_vkey_data (parse) : 0;
 }
 
 /* Allocate memory for a new GMetrics instance.
@@ -507,6 +549,7 @@ get_mtr_str (GSMetric metric) {
     {"MTRC_ROOTMAP", MTRC_ROOTMAP},
     {"MTRC_DATAMAP", MTRC_DATAMAP},
     {"MTRC_UNIQMAP", MTRC_UNIQMAP},
+    {"MTRC_METRICS", MTRC_METRICS},
     {"MTRC_ROOT", MTRC_ROOT},
     {"MTRC_HITS", MTRC_HITS},
     {"MTRC_VISITORS", MTRC_VISITORS},
@@ -553,7 +596,7 @@ void
 set_module_totals (GPercTotals *totals) {
   totals->bw = ht_sum_bw ();
   totals->hits = ht_sum_valid ();
-  totals->visitors = ht_get_size_uniqmap (VISITORS);
+  totals->visitors = ht_sum_uniq_visitors ();
 }
 
 /* Set numeric metrics for each request given raw data.
@@ -1532,9 +1575,20 @@ map_log (GLogItem *logitem, const GParse *parse, GModule module) {
   if (parse->datamap && kdata.data)
     kdata.data_nkey = insert_dkeymap (module, &kdata);
 
-  /* each module contains a uniq visitor key/value */
-  if (parse->visitor && logitem->uniq_key && include_uniq (logitem))
-    kdata.uniq_nkey = insert_uniqmap (module, &kdata, logitem->uniq_nkey);
+  /* each module contains a uniq visitor key/value; when the data key derives
+   * solely from the visitor key, a visitor is new to this module exactly when
+   * this is their first counted request, so no uniqmap entry is needed */
+  if (parse->visitor && logitem->uniq_key && include_uniq (logitem)) {
+    if (is_vkey_data (parse))
+      kdata.uniq_nkey = logitem->uniq_first;
+    else
+      kdata.uniq_nkey = insert_uniqmap (module, &kdata, logitem->uniq_nkey);
+
+    /* the per-date visitors counter is authoritative for the overall total
+     * and advances exactly when the VISITORS panel counts a visitor */
+    if (module == VISITORS && kdata.uniq_nkey == 1)
+      ht_inc_cnt_visitors (kdata.numdate);
+  }
 
   /* root keys are optional */
   if (parse->rootmap && kdata.root)
@@ -1608,7 +1662,10 @@ process_log (GLogItem *logitem) {
 
   /* Insert one unique visitor key per request to avoid the
    * overhead of storing one key per module */
-  if ((logitem->uniq_nkey = ht_insert_unique_key (numdate, logitem->uniq_key)) == 0)
+  logitem->uniq_nkey =
+    ht_insert_unique_key (numdate, logitem->uniq_key, include_uniq (logitem),
+                          &logitem->uniq_first);
+  if (logitem->uniq_nkey == 0)
     return;
 
   /* If we need to store user agents per IP, then we store them and retrieve

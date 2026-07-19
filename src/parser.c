@@ -291,7 +291,8 @@ init_log_item (GLog *glog) {
   logitem->serve_time = 0;
   logitem->status = -1;
   logitem->time = NULL;
-  logitem->uniq_key = NULL;
+  logitem->uniq_key = 0;
+  logitem->uniq_first = 0;
   logitem->vhost = NULL;
   logitem->userid = NULL;
   logitem->cache_status = NULL;
@@ -303,7 +304,6 @@ init_log_item (GLog *glog) {
   logitem->tls_type_cypher = NULL;
 
   memset (logitem->site, 0, sizeof (logitem->site));
-  memset (logitem->agent_hex, 0, sizeof (logitem->agent_hex));
   logitem->dt = glog->start_time;
 
   return logitem;
@@ -355,8 +355,6 @@ free_glog (GLogItem *logitem) {
     free (logitem->req);
   if (logitem->time != NULL)
     free (logitem->time);
-  if (logitem->uniq_key != NULL)
-    free (logitem->uniq_key);
   if (logitem->userid != NULL)
     free (logitem->userid);
   if (logitem->cache_status != NULL)
@@ -877,7 +875,6 @@ set_numeric_date (uint32_t *numdate, const char *date) {
 static void
 set_agent_hash (GLogItem *logitem) {
   logitem->agent_hash = djb2 ((unsigned char *) logitem->agent);
-  sprintf (logitem->agent_hex, "%" PRIx32, logitem->agent_hash);
 }
 
 static int
@@ -1810,33 +1807,14 @@ ignore_line (GLogItem *logitem) {
   return 0;
 }
 
-/* The following generates a unique key to identity unique visitors.
- * The key is made out of the IP, date, and user agent.
- * Note that for readability, doing a simple snprintf/sprintf should
- * suffice, however, memcpy is the fastest solution
+/* The following generates a unique fingerprint to identify unique visitors.
+ * The fingerprint is made out of the IP and user agent hash; the date is
+ * implied by the per-date storage partitioning.
  *
- * On success the new unique visitor key is returned */
-static char *
+ * On success the unique visitor fingerprint is returned */
+static uint64_t
 get_uniq_visitor_key (GLogItem *logitem) {
-  char *key = NULL;
-  size_t s1, s2, s3;
-
-  s1 = strlen (logitem->date);
-  s2 = strlen (logitem->host);
-  s3 = strlen (logitem->agent_hex);
-
-  /* includes terminating null */
-  key = xcalloc (s1 + s2 + s3 + 3, sizeof (char));
-
-  memcpy (key, logitem->date, s1);
-
-  key[s1] = '|';
-  memcpy (key + s1 + 1, logitem->host, s2 + 1);
-
-  key[s1 + s2 + 1] = '|';
-  memcpy (key + s1 + s2 + 2, logitem->agent_hex, s3 + 1);
-
-  return key;
+  return visitor_fingerprint (logitem->host, logitem->agent_hash);
 }
 
 /* Determine if the current log has the content from the last time it was
