@@ -35,7 +35,7 @@
 
 #define DB_PATH "/tmp"
 
-#define GAMTRC_TOTAL 8
+#define GAMTRC_TOTAL 9
 /* Enumerated App Metrics */
 typedef enum GAMetric_ {
   MTRC_DATES,
@@ -46,6 +46,7 @@ typedef enum GAMetric_ {
   MTRC_JSON_LOGFMT,
   MTRC_METH_PROTO,
   MTRC_DB_PROPS,
+  MTRC_COUNTRY_CONTINENT,
 } GAMetric;
 
 /* Enumerated Storage Metrics */
@@ -194,7 +195,6 @@ GMetrics *new_gmetrics (void);
 
 #ifdef HAVE_GEOLOCATION
 const char *get_continent_for_country (const char *country);
-void free_country_continent_map (void);
 #endif
 
 #endif // for #ifndef GSTORAGE_H

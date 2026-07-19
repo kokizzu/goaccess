@@ -51,56 +51,87 @@
 #include "xmalloc.h"
 
 #ifdef HAVE_GEOLOCATION
-/* Static hash map: country string -> continent string.
- * Populated during parsing, queried during holder construction. */
-static
-khash_t (ss32) *
-  country_continent_map = NULL;
-
+/* Record the continent the GeoIP database resolved a country to. */
 static void
 set_country_continent (const char *country, const char *continent) {
-  khint_t k;
-  int ret;
-
   if (country == NULL || continent == NULL)
     return;
-  if (country_continent_map == NULL)
-    country_continent_map = kh_init (ss32);
-
-  k = kh_get (ss32, country_continent_map, country);
-  if (k != kh_end (country_continent_map))
-    return;     /* already exists */
-
-  k = kh_put (ss32, country_continent_map, xstrdup (country), &ret);
-  if (ret)
-    kh_val (country_continent_map, k) = xstrdup (continent);
+  ht_insert_country_continent (country, continent);
 }
 
+/* *INDENT-OFF* */
+/* ISO 3166-1 alpha-2 country codes grouped by continent. Used as a static
+ * fallback only when a country was restored from a database persisted
+ * before country-to-continent associations were stored; the persisted
+ * association always takes precedence since providers disagree on a few
+ * territories. Codes are space separated and space terminated so a "XX "
+ * pattern matches exactly one code. */
+static const struct {
+  const char *codes;
+  const char *continent;
+} continents_by_country[] = {
+  { "AO BF BI BJ BW CD CF CG CI CM CV DJ DZ EG EH ER ET GA GH GM GN GQ GW "
+    "KE KM LR LS LY MA MG ML MR MU MW MZ NA NE NG RE RW SC SD SH SL SN SO "
+    "SS ST SZ TD TG TN TZ UG YT ZA ZM ZW "                                    , "AF Africa"        } ,
+  { "AQ BV GS HM TF "                                                         , "AN Antarctica"    } ,
+  { "AE AF AM AZ BD BH BN BT CC CN GE HK ID IL IN IO IQ IR JO JP KG KH KP "
+    "KR KW KZ LA LB LK MM MN MO MV MY NP OM PH PK PS QA SA SG SY TH TJ TM "
+    "TR TW UZ VN YE "                                                         , "AS Asia"          } ,
+  { "AD AL AT AX BA BE BG BY CH CY CZ DE DK EE ES FI FO FR GB GG GI GR HR "
+    "HU IE IM IS IT JE LI LT LU LV MC MD ME MK MT NL NO PL PT RO RS RU SE "
+    "SI SJ SK SM UA VA XK "                                                   , "EU Europe"        } ,
+  { "AG AI AW BB BL BM BQ BS BZ CA CR CU CW DM DO GD GL GP GT HN HT JM KN "
+    "KY LC MF MQ MS MX NI PA PM PR SV SX TC TT US VC VG VI "                  , "NA North America" } ,
+  { "AS AU CK CX FJ FM GU KI MH MP NC NF NR NU NZ PF PG PN PW SB TK TL TO "
+    "TV UM VU WF WS "                                                         , "OC Oceania"       } ,
+  { "AR BO BR CL CO EC FK GF GY PE PY SR UY VE "                             , "SA South America" } ,
+};
+/* *INDENT-ON* */
+
+/* Look up the continent for a "CODE Name" country label in the static
+ * country code table.
+ *
+ * On success, the continent code & name label is returned.
+ * If the country code is not found, NULL is returned. */
+static const char *
+get_static_continent (const char *country) {
+  char code[4] = { 0 };
+  size_t i;
+
+  if (!country[0] || !country[1] || country[2] != ' ')
+    return NULL;
+
+  code[0] = country[0];
+  code[1] = country[1];
+  code[2] = ' ';
+
+  for (i = 0; i < ARRAY_SIZE (continents_by_country); ++i) {
+    if (strstr (continents_by_country[i].codes, code))
+      return continents_by_country[i].continent;
+  }
+  return NULL;
+}
+
+/* Get the continent for the given country, preferring the association
+ * recorded during ingestion over the static table.
+ *
+ * On success, the continent code & name label is returned.
+ * On failure, NULL is returned. */
 const char *
 get_continent_for_country (const char *country) {
-  khint_t k;
-  if (country_continent_map == NULL || country == NULL)
+  const char *continent = NULL;
+
+  if (country == NULL)
     return NULL;
-  k = kh_get (ss32, country_continent_map, country);
-  if (k == kh_end (country_continent_map))
-    return NULL;
-  return kh_val (country_continent_map, k);
+
+  if ((continent = ht_get_country_continent (country)))
+    return continent;
+
+  /* databases persisted before the association was stored have nothing to
+   * restore; fall back to the static mapping */
+  return get_static_continent (country);
 }
 
-void
-free_country_continent_map (void) {
-  khint_t k;
-  if (country_continent_map == NULL)
-    return;
-  for (k = kh_begin (country_continent_map); k != kh_end (country_continent_map); ++k) {
-    if (!kh_exist (country_continent_map, k))
-      continue;
-    free ((char *) kh_key (country_continent_map, k));
-    free (kh_val (country_continent_map, k));
-  }
-  kh_destroy (ss32, country_continent_map);
-  country_continent_map = NULL;
-}
 #endif
 
 /* private prototypes */

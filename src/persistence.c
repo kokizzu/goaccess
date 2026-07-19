@@ -226,6 +226,50 @@ persist_global_si32 (khash_t (si32) *hash, const char *fn) {
   close_tpl (tn, fn);
 }
 
+/* Restore a string key, string value database back to the storage. */
+static void
+restore_global_ss32 (khash_t (ss32) *hash, const char *fn) {
+  tpl_node *tn;
+  char *key = NULL, *val = NULL;
+  char fmt[] = "A(ss)";
+  khint_t k;
+  int ret = 0;
+
+  tn = tpl_map (fmt, &key, &val);
+  tpl_load (tn, TPL_FILE, fn);
+  while (tpl_unpack (tn, 1) > 0) {
+    k = kh_put (ss32, hash, key, &ret);
+    if (ret > 0) {
+      kh_key (hash, k) = xstrdup (key);
+      kh_val (hash, k) = xstrdup (val);
+    }
+    free (key);
+    free (val);
+  }
+  tpl_free (tn);
+}
+
+/* Persist to disk a string key, string value hash. */
+static void
+persist_global_ss32 (khash_t (ss32) *hash, const char *fn) {
+  tpl_node *tn;
+  khint_t k;
+  const char *key = NULL, *val = NULL;
+  char fmt[] = "A(ss)";
+
+  if (!hash || kh_size (hash) == 0)
+    return;
+
+  tn = tpl_map (fmt, &key, &val);
+  for (k = 0; k < kh_end (hash); ++k) {
+    if (!kh_exist (hash, k) || !(key = kh_key (hash, k)) || !(val = kh_value (hash, k)))
+      continue;
+    tpl_pack (tn, 1);
+  }
+
+  close_tpl (tn, fn);
+}
+
 /* Given a database filename, restore a uint64_t key, GLastParse value back to
  * the storage */
 static void
@@ -2005,6 +2049,10 @@ restore_global (void) {
     restore_global_iglp (last_parse, path);
     free (path);
   }
+  if ((path = check_restore_path ("SS32_COUNTRY_CONTINENT.db"))) {
+    restore_global_ss32 (get_hdb (db, MTRC_COUNTRY_CONTINENT), path);
+    free (path);
+  }
 }
 
 static void
@@ -2031,6 +2079,10 @@ persist_global (void) {
   }
   if ((path = set_db_path ("SI08_METH_PROTO.db"))) {
     persist_global_si08 (meth_proto, path);
+    free (path);
+  }
+  if ((path = set_db_path ("SS32_COUNTRY_CONTINENT.db"))) {
+    persist_global_ss32 (get_hdb (db, MTRC_COUNTRY_CONTINENT), path);
     free (path);
   }
 }

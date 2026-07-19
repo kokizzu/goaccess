@@ -169,6 +169,7 @@ uint64_t get_iu64 (khash_t (iu64) * hash, uint32_t key);
 uint64_t get_su64 (khash_t (su64) * hash, const char *key);
 uint8_t get_si08 (khash_t (si08) * hash, const char *key);
 
+int ht_insert_country_continent (const char *country, const char *continent);
 int ht_insert_hostname (const char *ip, const char *host);
 int ht_insert_json_logfmt (GO_UNUSED void *userdata, char *key, char *spec);
 int ht_insert_last_parse (uint64_t key, const GLastParse *lp);
@@ -176,6 +177,7 @@ uint32_t ht_inc_cnt_overall (const char *key, uint32_t val);
 uint32_t ht_ins_seq (khash_t (si32) * hash, const char *key);
 uint8_t ht_insert_meth_proto (const char *key);
 
+const char *ht_get_country_continent (const char *country);
 char *ht_get_hostname (const char *host);
 char *ht_get_json_logfmt (const char *key);
 uint32_t ht_get_excluded_ips (void);

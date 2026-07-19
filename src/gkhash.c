@@ -571,6 +571,7 @@ const GKHashMetric app_metrics[] = {
   { .metric.dbm=MTRC_JSON_LOGFMT , MTRC_TYPE_SS32 , new_ss32_ht , des_ss32_free , del_ss32_free , 1 , NULL , NULL                  } ,
   { .metric.dbm=MTRC_METH_PROTO  , MTRC_TYPE_SI08 , new_si08_ht , des_si08_free , del_si08_free , 1 , NULL , "SI08_METH_PROTO.db"  } ,
   { .metric.dbm=MTRC_DB_PROPS    , MTRC_TYPE_SI32 , new_si32_ht , des_si32_free , del_si32_free , 1 , NULL , "SI32_DB_PROPS.db"    } ,
+  { .metric.dbm=MTRC_COUNTRY_CONTINENT , MTRC_TYPE_SS32 , new_ss32_ht , des_ss32_free , del_ss32_free , 1 , NULL , "SS32_COUNTRY_CONTINENT.db" } ,
 };
 
 const size_t app_metrics_len = ARRAY_SIZE (app_metrics);
@@ -1544,6 +1545,44 @@ ht_get_last_parse (uint64_t key) {
   GKDB *db = get_db_instance (DB_INSTANCE);
   khash_t (iglp) * hash = get_hdb (db, MTRC_LAST_PARSE);
   return get_iglp (hash, key);
+}
+
+/* Insert a country mapped to the continent the GeoIP database resolved it
+ * to, so restored data can rebuild the exact hierarchy recorded during
+ * ingestion.
+ *
+ * On success 0 is returned.
+ * If the country exists, 1 is returned.
+ * On error, -1 is returned. */
+int
+ht_insert_country_continent (const char *country, const char *continent) {
+  GKDB *db = get_db_instance (DB_INSTANCE);
+  khash_t (ss32) * hash = get_hdb (db, MTRC_COUNTRY_CONTINENT);
+
+  if (!hash)
+    return -1;
+
+  return ins_ss32 (hash, country, continent);
+}
+
+/* Get the continent recorded for the given country during ingestion.
+ *
+ * On success, a borrowed pointer to the continent label is returned.
+ * On error or not found, NULL is returned. */
+const char *
+ht_get_country_continent (const char *country) {
+  GKDB *db = get_db_instance (DB_INSTANCE);
+  khash_t (ss32) * hash = get_hdb (db, MTRC_COUNTRY_CONTINENT);
+  khint_t k;
+
+  if (!hash)
+    return NULL;
+
+  k = kh_get (ss32, hash, country);
+  if (k == kh_end (hash))
+    return NULL;
+
+  return kh_val (hash, k);
 }
 
 /* Get the string value from ht_hostnames given a string key (IP).
