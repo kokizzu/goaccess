@@ -208,7 +208,6 @@ AC_CHECK_LIB([nsl], [gethostbyname])
 AC_CHECK_LIB([socket], [socket])
 
 # Checks for header files.
-AC_HEADER_STDC
 AC_CHECK_HEADERS([arpa/inet.h])
 AC_CHECK_HEADERS([fcntl.h])
 AC_CHECK_HEADERS([inttypes.h])

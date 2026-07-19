@@ -547,7 +547,7 @@ parse_crawler (char *str, char *match, char *type) {
  * If no occurrences are found, NULL is returned.
  * If an occurrence is found, a pointer to the match is returned . */
 static char *
-check_http_crawler (const char *str) {
+check_http_crawler (char *str) {
   char *match = NULL;
 
   /* e.g., compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm */

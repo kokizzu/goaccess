@@ -879,7 +879,8 @@ set_agent_hash (GLogItem *logitem) {
 
 static int
 handle_default_case_token (const char **str, const char *p) {
-  char *pch = NULL;
+  const char *pch = NULL;
+
   if ((pch = strchr (*str, p[1])) != NULL)
     *str += pch - *str;
   return 0;
@@ -977,9 +978,10 @@ parse_specifier (GLogItem *logitem, const char **str, const char *p, const char 
   struct tm tm;
   const char *dfmt = conf.date_format;
   const char *tfmt = conf.time_format;
+  const char *pch = NULL;
   char norm_mime[MAX_MIME_OUT] = { 0 };
 
-  char *pch, *sEnd, *bEnd, *tkn = NULL;
+  char *sEnd = NULL, *bEnd = NULL, *tkn = NULL;
   double serve_secs = 0.0;
   uint64_t bandw = 0, serve_time = 0;
   int dspc = 0, fmtspcs = 0;
